@@ -95,3 +95,9 @@ Print LOGO command (provided that the LOGO picture is built in the machine in ad
 attribute y is the starting point in the vertical direction Coordinates (default is 0)
 To print an example of the order effect, click to download the following function reference. If you have other technical questions, please join the Fei Go API Open Platform 5 group: 146903613.
 ```
+
+## Testing
+
+Running with jest network error:
+
+https://github.com/axios/axios/issues/1754#issuecomment-486924528

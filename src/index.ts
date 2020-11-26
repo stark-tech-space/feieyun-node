@@ -26,7 +26,7 @@ export class Feieyun {
 	public debug: boolean;
 
 	constructor({
-		baseURL = 'api.jp.feieyun.com/Api/',
+		baseURL = 'http://api.jp.feieyun.com/Api/Open',
 		timeout = 10000,
 		user = '',
 		key = '',
@@ -47,7 +47,7 @@ export class Feieyun {
 		});
 	}
 
-	private signture(stime) {
+	private signture(stime: number) {
 		const val = `${this.user}${this.key}${stime}`;
 		const sha = createHash('sha1');
 		sha.update(val);
@@ -74,7 +74,7 @@ export class Feieyun {
 		return `${year}-${day}-${month}`;
 	}
 
-	private request(body) {
+	private request(body: Object) {
 		const stime = this.getUnixTime();
 		return this.client.post('/', {
 			user: this.user,
@@ -128,7 +128,13 @@ export class Feieyun {
 		times: number;
 		img?: any;
 	}) {
-		let params = {
+		let params: {
+			apiname: string;
+			sn: string;
+			content: string;
+			times: string;
+			img?: any;
+		} = {
 			apiname: FEIEYUN_API_COMMANDS.PRINT_LABEL,
 			sn,
 			content,
@@ -158,7 +164,12 @@ export class Feieyun {
 		name: string;
 		phonenum?: string;
 	}) {
-		let params = {
+		let params: {
+			apiname: string;
+			sn: string;
+			name: string;
+			phonenum?: string;
+		} = {
 			apiname: FEIEYUN_API_COMMANDS.EDIT_PRINTER,
 			sn,
 			name,
