@@ -1,0 +1,79 @@
+name: 'Release Management'
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    # Test on most used node version
+    strategy:
+      matrix:
+        node-version: [12.x]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install Node Dependencies
+        run: npm install
+      - name: Run Tests
+        run: npm test
+
+  update_draft_release:
+    needs: [ci]
+    runs-on: ubuntu-latest
+    steps:
+      # Drafts your next Release notes as Pull Requests are merged into "master"
+      - uses: release-drafter/release-drafter@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish_draft_release_on_version_bump:
+    needs: [update_draft_release]
+    runs-on: ubuntu-latest
+    steps:
+      # Does a checkout of your repository at the pushed commit SHA
+      - uses: actions/checkout@v2
+      # Checks for a version bump to publish an existing Draft Release
+      - id: github_release
+        uses: JamesMGreene/node-draft-releaser@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Show the Release URL, just for fun
+      - run: echo "Released at $RELEASE_URL"
+        env:
+          RELEASE_URL: ${{ steps.github_release.outputs.release_url }}
+
+  publish_package_to_npm_gpr:
+    needs: [publish_draft_release_on_version_bump]
+    runs-on: ubuntu-latest
+    steps: # Does a checkout of your repository at the pushed commit SHA
+      - uses: actions/checkout@v2
+      # Setup .npmrc file to publish to npm
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
+          registry-url: 'https://registry.npmjs.org'
+          scope: '@stark-tech-space'
+      - run: npm install
+      - run: npm run build --if-present
+      # Publish to npm
+      - name: Publish to NPM
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Setup .npmrc file to publish to GitHub Packages
+      - uses: actions/setup-node@v1
+        with:
+          registry-url: 'https://npm.pkg.github.com'
+          # Defaults to the user or organization that owns the workflow file
+          scope: '@stark-tech-space'
+      # Publish to GitHub Packages
+      - name: Publish to Github Packages
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

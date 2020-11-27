@@ -1,5 +1,6 @@
 import Axios, { AxiosInstance } from 'axios';
 import { createHash } from 'crypto';
+import zip from 'lodash/zip';
 
 export enum FEIEYUN_API_COMMANDS {
 	ADD_PRINTER = 'Open_printerAddlist',
@@ -13,6 +14,76 @@ export enum FEIEYUN_API_COMMANDS {
 	QUERY_PRINTER_STATUS = 'Open_queryPrinterStatus',
 }
 
+export interface Printer {
+	sn: string;
+	key: string;
+	name?: string;
+	cardNumber?: string;
+}
+
+//row length of 32 characters
+//price gets 5 chars
+//count gets 2 chars
+//item total gets 8 chars
+//space between all columns
+/*
+join <BR>
+[
+  [
+    {value: 'string', col: 14},
+    {value: 'string', col: 5},
+    {value: 'string', col: 2},
+    {value: 'string', col: 8}
+  ] join ' '
+]
+*/
+
+type TicketCol = {
+	value: string;
+	col: number;
+};
+
+type TicketRow = TicketCol[];
+
+type Ticket = TicketRow[];
+
+/**
+ *
+ * @param ticket
+ *
+[
+  [
+    {value: 'string', col: 14},
+    {value: 'string', col: 5},
+    {value: 'string', col: 2},
+    {value: 'string', col: 8}
+  ]
+]
+ * @returns string
+ */
+export const parseTicket = (ticket: Ticket) => {
+	return ticket
+		.map((row) => {
+			//validate row
+			const rowSize =
+				row.reduce((prev, r) => (prev += r.col), 0) + (row.length - 1);
+
+			if (rowSize > 32) {
+				throw new Error('Row size too large (max 32 char)');
+			}
+
+			const parsedRow = row.map((r) =>
+				r.value.split(new RegExp(`(.{1,${r.col}})`, 'gm'))
+			);
+			const zippedRow = zip(...parsedRow);
+			const rowString = zippedRow.map((zr) => zr.join(' ')).join('<BR>');
+			return rowString;
+		})
+		.join('<BR>');
+};
+
+const parseLabel = (label: any) => {};
+
 /**
  * Feieyun Printer Class
  * @param baseURL api url
@@ -23,27 +94,26 @@ export class Feieyun {
 	private client: AxiosInstance;
 	private user: string;
 	private key: string;
-	public debug: boolean;
 
 	constructor({
 		baseURL = 'http://api.jp.feieyun.com/Api/Open',
 		timeout = 10000,
 		user = '',
 		key = '',
-		isDebug = false,
 	}: {
 		baseURL?: string;
 		timeout?: number;
 		user: string;
 		key: string;
-		isDebug?: boolean;
 	}) {
-		this.debug = isDebug;
 		this.user = user;
 		this.key = key;
 		this.client = Axios.create({
 			baseURL,
 			timeout,
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+			},
 		});
 	}
 
@@ -74,47 +144,71 @@ export class Feieyun {
 		return `${year}-${day}-${month}`;
 	}
 
-	private request(body: Object) {
+	private async request(body: Object) {
 		const stime = this.getUnixTime();
-		return this.client.post('/', {
+		const res = await this.client.post('/', {
 			user: this.user,
-			stime,
+			stime: stime.toString(),
 			sig: this.signture(stime),
-			debug: this.debug,
 			...body,
 		});
+
+		if (res.data?.ret < 0) {
+			throw new Error(res.data?.msg);
+		}
+
+		console.log(res);
+
+		return res.data;
 	}
 
 	/**
 	 *
-	 * @param printers 'sn1#key1#remark1#carnum1\nsn2#key2#remark2#carnum2'
+	 * @param printers {sn, key, name, cardNumber }'sn1#key1#remark1#carnum1\nsn2#key2#remark2#carnum2'
 	 * example: 316500010 # abcdefgh # Front desk # 13688889999
 	 *          316500011 # abcdefgh # kitchen # 13688889990
 	 */
-	async addPrinter(printers: string = '') {
+	async addPrinters(printers: Printer[] = []) {
+		if (printers.length > 100) {
+			throw new Error('Maximum 100 printers can be added per batch');
+		}
+		const printerList = printers
+			.map(({ sn, key, name, cardNumber }) => {
+				let printerStr = `${sn}#${key}`;
+				if (name != null) {
+					printerStr += `#${name}`;
+				}
+
+				if (cardNumber != null) {
+					printerStr += `#${cardNumber}`;
+				}
+				return printerStr;
+			})
+			.join('\n');
+
 		const res = await this.request({
 			apiname: FEIEYUN_API_COMMANDS.ADD_PRINTER,
-			printerContent: printers,
+			printerContent: printerList,
 		});
-		return res.data;
+		return res;
 	}
 
 	async printTicket({
 		sn = '',
-		content = '',
+		content = [],
 		times = 1,
 	}: {
 		sn: string;
-		content: string;
+		content: Ticket;
 		times: number;
 	}) {
 		const res = await this.request({
 			apiname: FEIEYUN_API_COMMANDS.PRINT_TICKET,
 			sn,
-			content,
+			content: parseTicket(content),
 			times: times.toString(),
 		});
-		return res.data;
+		return res;
 	}
 
 	async printLabel({
@@ -144,15 +238,16 @@ export class Feieyun {
 			params.img = img;
 		}
 		const res = await this.request(params);
-		return res.data;
+		return res;
 	}
 
-	async deletePrinter(printers: string = '') {
+	async deletePrinters(printers: string[] = []) {
+		const snList = printers.join('-');
 		const res = await this.request({
 			apiname: FEIEYUN_API_COMMANDS.DELETE_PRINTER,
-			snlist: printers,
+			snlist: snList,
 		});
-		return res.data;
+		return res;
 	}
 
 	async editPrinter({
@@ -179,7 +274,7 @@ export class Feieyun {
 			params.phonenum = phonenum;
 		}
 		const res = await this.request(params);
-		return res.data;
+		return res;
 	}
 
 	async clearPrintJobs(sn: string) {
@@ -187,7 +282,7 @@ export class Feieyun {
 			apiname: FEIEYUN_API_COMMANDS.CLEAR_PRINT_JOBS,
 			sn,
 		});
-		return res.data;
+		return res;
 	}
 
 	async queryPrintJob(jobId: string = '') {
@@ -195,7 +290,7 @@ export class Feieyun {
 			apiname: FEIEYUN_API_COMMANDS.QUERY_PRINT_JOB,
 			orderid: jobId,
 		});
-		return res.data;
+		return res;
 	}
 
 	async queryPrintJobsByDate({
@@ -210,15 +305,15 @@ export class Feieyun {
 			sn,
 			date: this.formatDate(date),
 		});
-		return res.data;
+		return res;
 	}
 
-	async Open_queryPrinterStatus(sn: string = '') {
+	async queryPrinterStatus(sn: string = '') {
 		const res = await this.request({
 			apiname: FEIEYUN_API_COMMANDS.QUERY_PRINTER_STATUS,
 			sn,
 		});
-		return res.data;
+		return res;
 	}
 }
 
