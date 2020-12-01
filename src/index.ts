@@ -1,6 +1,6 @@
 import Axios, { AxiosInstance } from 'axios';
 import { createHash } from 'crypto';
-import zip from 'lodash/zip';
+import qs from 'querystring';
 
 export enum FEIEYUN_API_COMMANDS {
 	ADD_PRINTER = 'Open_printerAddlist',
@@ -20,69 +20,6 @@ export interface Printer {
 	name?: string;
 	cardNumber?: string;
 }
-
-//row length of 32 characters
-//price gets 5 chars
-//count gets 2 chars
-//item total gets 8 chars
-//space between all columns
-/*
-join <BR>
-[
-  [
-    {value: 'string', col: 14},
-    {value: 'string', col: 5},
-    {value: 'string', col: 2},
-    {value: 'string', col: 8}
-  ] join ' '
-]
-*/
-
-type TicketCol = {
-	value: string;
-	col: number;
-};
-
-type TicketRow = TicketCol[];
-
-type Ticket = TicketRow[];
-
-/**
- *
- * @param ticket
- *
-[
-  [
-    {value: 'string', col: 14},
-    {value: 'string', col: 5},
-    {value: 'string', col: 2},
-    {value: 'string', col: 8}
-  ]
-]
- * @returns string
- */
-export const parseTicket = (ticket: Ticket) => {
-	return ticket
-		.map((row) => {
-			//validate row
-			const rowSize =
-				row.reduce((prev, r) => (prev += r.col), 0) + (row.length - 1);
-
-			if (rowSize > 32) {
-				throw new Error('Row size too large (max 32 char)');
-			}
-
-			const parsedRow = row.map((r) =>
-				r.value.split(new RegExp(`(.{1,${r.col}})`, 'gm'))
-			);
-			const zippedRow = zip(...parsedRow);
-			const rowString = zippedRow.map((zr) => zr.join(' ')).join('<BR>');
-			return rowString;
-		})
-		.join('<BR>');
-};
-
-const parseLabel = (label: any) => {};
 
 /**
  * Feieyun Printer Class
@@ -112,13 +49,13 @@ export class Feieyun {
 			baseURL,
 			timeout,
 			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+				'Content-Type': 'application/x-www-form-urlencoded',
 			},
 		});
 	}
 
-	private signture(stime: number) {
-		const val = `${this.user}${this.key}${stime}`;
+	private signature(stime: number) {
+		const val = this.user + this.key + stime;
 		const sha = createHash('sha1');
 		sha.update(val);
 		return sha.digest('hex');
@@ -132,32 +69,30 @@ export class Feieyun {
 		let month = (date.getMonth() + 1).toString();
 		let day = date.getDate().toString();
 		const year = date.getFullYear();
-
 		if (month.length < 2) {
 			month = `0${month}`;
 		}
 
 		if (day.length < 2) {
-			day = `0${month}`;
+			day = `0${day}`;
 		}
 
 		return `${year}-${day}-${month}`;
 	}
 
-	private async request(body: Object) {
+	private async request(body: any) {
 		const stime = this.getUnixTime();
-		const res = await this.client.post('/', {
+		const reqParams = {
 			user: this.user,
-			stime: stime.toString(),
-			sig: this.signture(stime),
+			stime: stime,
+			sig: this.signature(stime),
 			...body,
-		});
+		};
+		const res = await this.client.post('/', qs.stringify(reqParams));
 
 		if (res.data?.ret < 0) {
 			throw new Error(res.data?.msg);
 		}
-
-		console.log(res);
 
 		return res.data;
 	}
@@ -195,17 +130,17 @@ export class Feieyun {
 
 	async printTicket({
 		sn = '',
-		content = [],
+		content = '',
 		times = 1,
 	}: {
 		sn: string;
-		content: Ticket;
+		content: string;
 		times: number;
 	}) {
 		const res = await this.request({
 			apiname: FEIEYUN_API_COMMANDS.PRINT_TICKET,
 			sn,
-			content: parseTicket(content),
+			content,
 			times: times.toString(),
 		});
 		return res;
@@ -300,6 +235,7 @@ export class Feieyun {
 		sn: string;
 		date: Date;
 	}) {
+		console.log(this.formatDate(date));
 		const res = await this.request({
 			apiname: FEIEYUN_API_COMMANDS.QUERY_PRINT_JOBS_BY_DATE,
 			sn,

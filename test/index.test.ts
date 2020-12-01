@@ -1,7 +1,71 @@
 import dotenv from 'dotenv';
+import zip from 'lodash/zip';
 import Feieyun from '../src';
 
 dotenv.config();
+
+//row length of 32 characters
+//price gets 5 chars
+//count gets 2 chars
+//item total gets 8 chars
+//space between all columns
+/*
+join <BR>
+[
+  [
+    {value: 'string', col: 14},
+    {value: 'string', col: 5},
+    {value: 'string', col: 2},
+    {value: 'string', col: 8}
+  ] join ' '
+]
+*/
+
+type TicketCol = {
+	value: string;
+	col: number;
+};
+
+type TicketRow = TicketCol[];
+
+type Ticket = TicketRow[];
+
+/**
+ *
+ * @param ticket
+ *
+[
+  [
+    {value: 'string', col: 14},
+    {value: 'string', col: 5},
+    {value: 'string', col: 2},
+    {value: 'string', col: 8}
+  ]
+]
+ * @returns string
+ */
+const parseTicket = (ticket: Ticket) => {
+	return ticket
+		.map((row) => {
+			//validate row
+			const rowSize =
+				row.reduce((prev, r) => (prev += r.col), 0) + (row.length - 1);
+
+			if (rowSize > 32) {
+				throw new Error('Row size too large (max 32 char)');
+			}
+
+			const parsedRow = row.map((r) =>
+				r.value.split(new RegExp(`(.{1,${r.col}})`, 'gm'))
+			);
+			const zippedRow = zip(...parsedRow);
+			const rowString = zippedRow.map((zr) => zr.join(' ')).join('<BR>');
+			return rowString;
+		})
+		.join('<BR>');
+};
+
+const parseLabel = (label: any) => {};
 
 const feieyun = new Feieyun({
 	user: process.env.API_USER || '',
@@ -146,10 +210,13 @@ const ticketTemplate = ({
 	];
 };
 
+const sampleLabel =
+	'<TEXT x="10" y="100" font="12" w="2" h="2" r="0">Test Label</TEXT>';
+
 describe('Feieyun printer test', () => {
 	it('should delete a printer', async () => {
 		const res = await feieyun.deletePrinters([devSN]);
-		console.log(res);
+		console.log(res.data);
 		expect(res).toBeDefined();
 	});
 
@@ -157,7 +224,7 @@ describe('Feieyun printer test', () => {
 		const res = await feieyun.addPrinters([
 			{ sn: devSN, key: devKey, name: 'Add Dev Printer' },
 		]);
-		console.log(res);
+		console.log(res.data);
 		expect(res).toBeDefined();
 	});
 
@@ -166,43 +233,51 @@ describe('Feieyun printer test', () => {
 			sn: devSN,
 			name: 'Edit Dev Printer',
 		});
-		console.log(res);
+		console.log(res.data);
 		expect(res).toBeDefined();
 	});
 
 	it('should print a ticket', async () => {
 		const res = await feieyun.printTicket({
 			sn: devSN,
-			content: sampleTicket,
+			content: parseTicket(sampleTicket),
 			times: 1,
 		});
-		console.log(res);
+		console.log(res.data);
 		expect(res).toBeDefined();
 	});
 
-	it('should print a label', async () => {});
+	it('should print a label', async () => {
+		const res = await feieyun.printLabel({
+			sn: devSN,
+			content: sampleLabel,
+			times: 1,
+		});
+		console.log(res.data);
+		expect(res).toBeDefined();
+	});
 
 	it('should query print job', async () => {
 		const resPrint = await feieyun.printTicket({
 			sn: devSN,
-			content: sampleTicket,
+			content: parseTicket(sampleTicket),
 			times: 1,
 		});
 
 		const res = await feieyun.queryPrintJob(resPrint.data);
-		console.log(res);
+		console.log(res.data);
 		expect(res).toBeDefined();
 	});
 
 	it('should query printer status', async () => {
 		const res = await feieyun.queryPrinterStatus(devSN);
-		console.log(res);
+		console.log(res.data);
 		expect(res).toBeDefined();
 	});
 
 	it('should clear print jobs', async () => {
 		const res = await feieyun.clearPrintJobs(devSN);
-		console.log(res);
+		console.log(res.data);
 		expect(res).toBeDefined();
 	});
 
@@ -211,7 +286,7 @@ describe('Feieyun printer test', () => {
 			sn: devSN,
 			date: new Date(),
 		});
-		console.log(res);
+		console.log(res.data);
 		expect(res).toBeDefined();
 	});
 });
