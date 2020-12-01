@@ -22,6 +22,11 @@ jobs:
         run: npm install
       - name: Run Tests
         run: npm test
+        env:
+          API_USER: ${{ secrets.FEIEYUN_USER }}
+          API_KEY: ${{ secrets.FEIEYUN_API_KEY }}
+          DEV_SN: ${{ secrets.FEIEYUN_DEVICE_SN }}
+          DEV_KEY: ${{ secrets.FEIEYUN_DEVICE_KEY }}
 
   update_draft_release:
     needs: [ci]

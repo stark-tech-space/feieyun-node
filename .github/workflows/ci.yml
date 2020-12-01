@@ -24,7 +24,7 @@ jobs:
       - name: Run Tests
         run: npm test
         env:
-          API_USER: ${{ FEIEYUN_USER }}
-          API_KEY: ${{ FEIEYUN_API_KEY }}
-          DEV_SN: ${{ FEIEYUN_DEVICE_SN }}
-          DEV_KEY: ${{ FEIEYUN_DEVICE_KEY }}
+          API_USER: ${{ secrets.FEIEYUN_USER }}
+          API_KEY: ${{ secrets.FEIEYUN_API_KEY }}
+          DEV_SN: ${{ secrets.FEIEYUN_DEVICE_SN }}
+          DEV_KEY: ${{ secrets.FEIEYUN_DEVICE_KEY }}
