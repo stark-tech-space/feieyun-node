@@ -1,6 +1,6 @@
 {
-	"name": "feieyun-node",
-	"version": "1.0.0",
+	"name": "@stark-tech-space/feieyun-node",
+	"version": "1.0.1",
 	"description": "Feieyun Printer Cloud API node implementation",
 	"main": "lib/index.js",
 	"scripts": {
