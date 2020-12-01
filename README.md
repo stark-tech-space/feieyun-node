@@ -1,3 +1,7 @@
+![Node.js CI](https://github.com/stark-tech-space/feieyun-node/workflows/Node.js%20CI/badge.svg)
+
+![Release Management](https://github.com/stark-tech-space/feieyun-node/workflows/Release%20Management/badge.svg)
+
 # feieyun-node
 
 Feieyun Printer Node
