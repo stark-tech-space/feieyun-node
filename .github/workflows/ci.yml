@@ -23,3 +23,8 @@ jobs:
         run: npm install
       - name: Run Tests
         run: npm test
+        env:
+          API_USER: ${{ FEIEYUN_USER }}
+          API_KEY: ${{ FEIEYUN_API_KEY }}
+          DEV_SN: ${{ FEIEYUN_DEVICE_SN }}
+          DEV_KEY: ${{ FEIEYUN_DEVICE_KEY }}
